@@ -111,7 +111,7 @@ $firstname = htmlspecialchars($user['firstname']); // Sanitize output
 <body>
 
     <div class="sidebar">
-        <h2><a href="homepage.php"><i class="fas fa-user"></i> Dashboard</a></h2>
+        <h2><a href="homepage.php"><i class="fas fa-user"></i>Dashboard</a></h2>
         <a href="profile.php"><i class="fas fa-user"></i> Profile</a>
         <a href="edit_profile.php"><i class="fas fa-edit"></i> Edit Profile</a>
         <a href="announcement.php"><i class="fas fa-bullhorn"></i> Announcement</a>
