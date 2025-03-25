@@ -32,7 +32,7 @@ try {
 // Fetch logged-in user data
 $user_id = $_SESSION['user_id'];
 
-$stmt = $pdo->prepare("SELECT firstname FROM users WHERE id = ?");
+$stmt = $pdo->prepare("SELECT firstname, lastname, course, year_lvl, remaining_sessions FROM users WHERE id = ?");
 $stmt->execute([$user_id]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -40,7 +40,12 @@ if (!$user) {
     die("User not found.");
 }
 
-$firstname = htmlspecialchars($user['firstname']); // Sanitize output
+// Sanitize output to prevent XSS attacks
+$firstname = htmlspecialchars($user['firstname'] ?? '');
+$lastname = htmlspecialchars($user['lastname'] ?? '');
+$course = htmlspecialchars($user['course'] ?? '');
+$year_lvl = htmlspecialchars($user['year_lvl'] ?? '');
+$remaining_sessions = htmlspecialchars($user['remaining_sessions'] ?? '0'); // Default to 0 if NULL
 ?>
 
 <!DOCTYPE html>
@@ -109,7 +114,16 @@ $firstname = htmlspecialchars($user['firstname']); // Sanitize output
     </style>
 </head>
 <body>
-
+    <div class="content">
+        <div class="card">
+            <h2>Profile</h2>
+            <p><strong>Name:</strong> <?php echo $firstname . " " . $lastname; ?></p>
+            <p><strong>Course:</strong> <?php echo $course; ?></p>
+            <p><strong>Year Level:</strong> <?php echo $year_lvl; ?></p>
+            <p><strong>Remaining Sessions:</strong> <?php echo $remaining_sessions; ?></p> <!-- ✅ New Field Added -->
+        </div>
+    </div>
+    
     <div class="sidebar">
         <h2><a href="homepage.php"><i class="fas fa-user"></i>Dashboard</a></h2>
         <a href="profile.php"><i class="fas fa-user"></i> Profile</a>

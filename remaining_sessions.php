@@ -1,10 +1,40 @@
 <?php
 session_start();
+
+// Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit();
 }
+
+// Database connection
+$host = "localhost";
+$dbname = "db"; 
+$username = "root"; 
+$password = "";
+
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    die("Database connection failed: " . $e->getMessage());
+}
+
+// Get the logged-in user's ID from session (trim spaces)
+$user_id = (int) $_SESSION['user_id']; // Convert to integer
+
+// Fetch the user details
+$stmt = $pdo->prepare("SELECT idNo, COALESCE(remaining_session, 30) AS remaining_session FROM credentials WHERE idNo = ?");
+$stmt->execute([$user_id]);
+$user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$user) {
+    $remaining_sessions = "Error: User not found. Please check if your account exists.";
+} else {
+    $remaining_sessions = $user['remaining_session'];
+}
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -18,8 +48,17 @@ if (!isset($_SESSION['user_id'])) {
     <?php include 'sidebar.php'; ?>
     <div class="content">
         <h2>Remaining Sessions</h2>
-        <p>You have 30 sit-in sessions remaining.</p>
+        <p>
+            <?php 
+            if (is_numeric($remaining_sessions)) {
+                echo "You have <strong>$remaining_sessions</strong> sit-in sessions remaining.";
+            } else {
+                echo "<span style='color: red;'>$remaining_sessions</span>";
+            }
+            ?>
+        </p>
     </div>
+
     <style>
         * {
             margin: 0;

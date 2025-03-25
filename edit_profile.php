@@ -1,9 +1,9 @@
 <?php
 session_start();
 
-// Disable error reporting for production
-error_reporting(0); // Disable all error reporting
-ini_set('display_errors', 0); // Do not display errors
+// Enable error reporting (for debugging purposes)
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
 // Check if the user is logged in
 if (!isset($_SESSION['user_id'])) {
@@ -26,8 +26,7 @@ try {
 
 // Fetch logged-in user data
 $user_id = $_SESSION['user_id'];
-
-$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$stmt = $pdo->prepare("SELECT firstName, lastName, email, year_lvl, profile_pic FROM users WHERE id = ?");
 $stmt->execute([$user_id]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -37,40 +36,55 @@ if (!$user) {
 
 // Handle profile update
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Use the null coalescing operator (??) to avoid undefined index notices
-    $firstName = htmlspecialchars($_POST['firstName'] ?? ''); 
-    $lastName = htmlspecialchars($_POST['lastName'] ?? ''); 
-    $email = htmlspecialchars($_POST['email'] ?? '');
-    $yearLevel = htmlspecialchars($_POST['yearLevel'] ?? ''); // Get year level input
+    $firstName = $_POST['firstName'] ?? $user['firstName'];
+    $lastName = $_POST['lastName'] ?? $user['lastName'];
+    $email = $_POST['email'] ?? $user['email'];
+    $year_lvl = $_POST['yearLevel'] ?? $user['year_lvl'];
+    $profile_pic = $user['profile_pic']; // Keep existing picture
 
-    // Update the user's profile in the database, including the year level and email
-    $sql = "UPDATE users SET email = ?, yearLevel = ? WHERE id = ?";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$email, $yearLevel, $user_id]);
+    // Handle file upload
+    if (!empty($_FILES['profile_pic']['name'])) {
+    $target_dir = "uploads/";
+    if (!file_exists($target_dir)) {
+        mkdir($target_dir, 0777, true); // Create folder if it doesn't exist
+    }
 
-    // Set success message in the session
-    $_SESSION['profile_updated'] = 'Your profile has been successfully updated!';
+    $file_name = basename($_FILES["profile_pic"]["name"]);
+    $file_path = $target_dir . time() . "_" . $file_name; // Prevent duplicate names
+    $file_type = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
 
-    // Fetch the updated user data after the update
-    $user['email'] = $email;
-    $user['yearLevel'] = $yearLevel;
+    // Allowed file types
+    $allowed_types = ["jpg", "jpeg", "png", "gif"];
 
-    // Redirect to refresh the page and reflect the updated data
-    header("Location: edit_profile.php");
-    exit();
-} else {
-    // Set the values for the form if not posted yet
-    $firstName = $user['firstName'];
-    $lastName = $user['lastName'];
-    $email = $user['email'];
-    $yearLevel = $user['yearLevel']; // Get the current year level
+    if (in_array($file_type, $allowed_types)) {
+        if (move_uploaded_file($_FILES["profile_pic"]["tmp_name"], $file_path)) { // FIXED TYPO HERE
+            $profile_pic = $file_path; // Update profile picture path
+        } else {
+            echo "Error uploading file.";
+        }
+    } else {
+        echo "Only JPG, JPEG, PNG & GIF files are allowed.";
+    }
 }
 
-// Check for success message in the session
-$successMessage = isset($_SESSION['profile_updated']) ? $_SESSION['profile_updated'] : '';
-if ($successMessage) {
-    unset($_SESSION['profile_updated']); // Clear the message after displaying it
+
+    // Update database
+    try {
+        $sql = "UPDATE users SET firstName = ?, lastName = ?, email = ?, year_lvl = ?, profile_pic = ? WHERE id = ?";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$firstName, $lastName, $email, $year_lvl, $profile_pic, $user_id]);
+
+        $_SESSION['profile_updated'] = 'Your profile has been successfully updated!';
+        header("Location: edit_profile.php");
+        exit();
+    } catch (PDOException $e) {
+        echo "Error updating profile: " . $e->getMessage();
+    }
 }
+
+// Success message
+$successMessage = $_SESSION['profile_updated'] ?? '';
+unset($_SESSION['profile_updated']);
 ?>
 
 <!DOCTYPE html>
@@ -88,7 +102,7 @@ if ($successMessage) {
         <h2>Edit Profile</h2>
         <p>Update your profile details here.</p>
 
-        <!-- Display Success Message if Set -->
+        <!-- Display Success Message -->
         <?php if ($successMessage): ?>
             <div class="success-message">
                 <p><?php echo htmlspecialchars($successMessage); ?></p>
@@ -96,27 +110,38 @@ if ($successMessage) {
         <?php endif; ?>
 
         <!-- Profile Update Form -->
-        <form action="edit_profile.php" method="POST">
+        <form action="edit_profile.php" method="POST" enctype="multipart/form-data">
             <div class="card">
                 <h3>Profile Details</h3>
 
-                <!-- Input Fields for User Details (name fields are optional) -->
-                <label for="firstName">First Name:</label>
-                <input type="text" id="firstName" name="firstName" value="<?php echo htmlspecialchars($firstName); ?>" autocomplete="given-name">
+                <!-- Profile Picture Section -->
+                <div class="profile-picture">
+                    <?php if (!empty($user['profile_pic'])): ?>
+                        <img src="<?php echo htmlspecialchars($user['profile_pic']); ?>" alt="Profile Picture">
+                    <?php else: ?>
+                        <p>No profile picture uploaded.</p>
+                    <?php endif; ?>
+                </div>
 
-                <label for="lastName">Last Name:</label>
-                <input type="text" id="lastName" name="lastName" value="<?php echo htmlspecialchars($lastName); ?>" autocomplete="family-name">
+                <label for="profile_pic">Upload Profile Picture</label>
+                <input type="file" id="profile_pic" name="profile_pic">
 
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email" value="<?php echo htmlspecialchars($email); ?>" autocomplete="email">
+                <label for="firstName">First Name</label>
+                <input type="text" id="firstName" name="firstName" value="<?php echo htmlspecialchars($user['firstName']); ?>">
+
+                <label for="lastName">Last Name</label>
+                <input type="text" id="lastName" name="lastName" value="<?php echo htmlspecialchars($user['lastName']); ?>">
+
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" value="<?php echo htmlspecialchars($user['email']); ?>">
 
                 <!-- Year Level Dropdown -->
                 <label for="yearLevel">Year Level:</label>
                 <select id="yearLevel" name="yearLevel">
-                    <option value="1st Year" <?php echo $yearLevel == '1st Year' ? 'selected' : ''; ?>>1st Year</option>
-                    <option value="2nd Year" <?php echo $yearLevel == '2nd Year' ? 'selected' : ''; ?>>2nd Year</option>
-                    <option value="3rd Year" <?php echo $yearLevel == '3rd Year' ? 'selected' : ''; ?>>3rd Year</option>
-                    <option value="4th Year" <?php echo $yearLevel == '4th Year' ? 'selected' : ''; ?>>4th Year</option>
+                    <option value="1st Year" <?php echo $user['year_lvl'] == '1st Year' ? 'selected' : ''; ?>>1st Year</option>
+                    <option value="2nd Year" <?php echo $user['year_lvl'] == '2nd Year' ? 'selected' : ''; ?>>2nd Year</option>
+                    <option value="3rd Year" <?php echo $user['year_lvl'] == '3rd Year' ? 'selected' : ''; ?>>3rd Year</option>
+                    <option value="4th Year" <?php echo $user['year_lvl'] == '4th Year' ? 'selected' : ''; ?>>4th Year</option>
                 </select>
 
                 <button type="submit">Update Profile</button>
@@ -162,7 +187,7 @@ if ($successMessage) {
             background: #34495e;
         }
         .content {
-            margin-left: 270px; /* Space for the sidebar */
+            margin-left: 270px;
             padding: 20px;
             width: calc(100% - 270px);
         }
@@ -173,7 +198,7 @@ if ($successMessage) {
             box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
             width: 100%;
             max-width: 600px;
-            margin: 0 auto; /* Center the card horizontally */
+            margin: 0 auto;
         }
         .card h3 {
             margin-bottom: 15px;
@@ -202,7 +227,6 @@ if ($successMessage) {
             background: #0056b3;
         }
 
-        /* Success message styling */
         .success-message {
             background-color: #4CAF50;
             color: white;
